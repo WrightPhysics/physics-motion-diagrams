@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motion Map Diagram Generator with Graphs</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.0/dist/katex.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f3f4f6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 24px;
+            color: #1f2937;
+        }
+
+        .inputs-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #374151;
+        }
+
+        .input-group input[type="checkbox"] {
+            margin-right: 6px;
+            cursor: pointer;
+        }
+
+        .input-group label:has(input[type="checkbox"]) {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0;
+            cursor: pointer;
+        }
+
+        .input-group input {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .input-group input:disabled {
+            background-color: #f3f4f6;
+            cursor: not-allowed;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-play {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-play:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .btn-play:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .btn-export {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-export:hover {
+            background: #059669;
+        }
+
+        .motion-map-section {
+            margin-bottom: 24px;
+        }
+
+        .graphs-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+        }
+
+        #canvas {
+            height: 300px;
+        }
+
+        .graph-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .labels-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            font-size: 0;
+        }
+
+        .math-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            color: #22aa44;
+            display: inline-block;
+            white-space: nowrap;
+            line-height: 1;
+            font-size: 14px;
+            padding: 0;
+            margin: 0;
+            vertical-align: middle;
+        }
+
+        .math-label.delta-v {
+            color: #ff8800;
+        }
+        
+        .math-label .katex {
+            margin: 0 !important;
+            padding: 0 !important;
+            vertical-align: middle;
+        }
+
+        .info {
+            margin-top: 16px;
+            padding: 12px;
+            background: #eff6ff;
+            border-left: 4px solid #3b82f6;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Motion Map Diagram Generator with Graphs</h1>
+
+        <div class="inputs-grid">
+            <div class="input-group">
+                <label for="x0">Initial Position x₀ (m)</label>
+                <input type="number" id="x0" value="1" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="v0">Initial Velocity v₀ (m/s)</label>
+                <input type="number" id="v0" value="0" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="slope">Slope of v-t graph (m/s²)</label>
+                <input type="number" id="slope" value="1.5" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="duration">Duration (s)</label>
+                <input type="number" id="duration" value="3" step="0.5">
+            </div>
+            <div class="input-group">
+                <label for="dt">Time Interval Δt (s)</label>
+                <input type="number" id="dt" value="1" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="playback-speed">Playback Speed</label>
+                <input type="number" id="playback-speed" value="1" min="0.1" step="0.1">
+            </div>
+            <div class="input-group">
+                <label for="show-values">
+                    <input type="checkbox" id="show-values"> Show velocity values
+                </label>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button class="btn-play" id="play-btn">▶ Play Animation</button>
+            <button class="btn-export" id="export-btn">⬇ Export as SVG</button>
+        </div>
+
+        <div class="motion-map-section">
+            <div class="graph-title">Motion Map</div>
+            <div class="canvas-wrapper">
+                <canvas id="canvas" width="900" height="250"></canvas>
+                <div class="labels-container" id="labels-container"></div>
+            </div>
+        </div>
+
+        <div class="graphs-grid">
+            <div>
+                <div class="graph-title">Position vs. Time</div>
+                <canvas id="graph-x-t" width="500" height="250"></canvas>
+            </div>
+            <div>
+                <div class="graph-title">Velocity vs. Time</div>
+                <canvas id="graph-v-t" width="500" height="250"></canvas>
+            </div>
+        </div>
+
+        <div class="info">
+            <strong>How it works:</strong> Green vectors show velocity at each marked position (half-scale) in the motion map. The graphs show position and velocity as functions of time. The object animates smoothly with continuous acceleration.
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const graphXtCanvas = document.getElementById('graph-x-t');
+        const graphXtCtx = graphXtCanvas.getContext('2d');
+        const graphVtCanvas = document.getElementById('graph-v-t');
+        const graphVtCtx = graphVtCanvas.getContext('2d');
+        const labelsContainer = document.getElementById('labels-container');
+
+        let isAnimating = false;
+        let animationId = null;
+        let markedData = [];
+        let currentRenderState = { pos: 0, vel: 0, marked: [], isComplete: false, minX: 0, maxX: 0, graphData: [] };
+
+        function getInputs() {
+            return {
+                x0: parseFloat(document.getElementById('x0').value),
+                v0: parseFloat(document.getElementById('v0').value),
+                slope: parseFloat(document.getElementById('slope').value),
+                duration: parseFloat(document.getElementById('duration').value),
+                dt: parseFloat(document.getElementById('dt').value),
+            };
+        }
+
+        function calculatePositionVelocity(t) {
+            const { x0, v0, slope } = getInputs();
+            const x = x0 + v0 * t + 0.5 * slope * t * t;
+            const v = v0 + slope * t;
+            return { x, v };
+        }
+
+        function calculateMotionData() {
+            const { duration, dt } = getInputs();
+            const data = [];
+            let t = 0;
+            let index = 0;
+            while (t <= duration + 0.001) {
+                const { x, v } = calculatePositionVelocity(t);
+                data.push({ t, x, v, index });
+                t += dt;
+                index++;
+            }
+            return data;
+        }
+
+        function renderKaTeXLabel(latex) {
+            try {
+                const html = katex.renderToString(latex);
+                return html;
+            } catch (e) {
+                return latex;
+            }
+        }
+
+        function createMathLabel(latex, x, y, isDeltaV = false) {
+            const label = document.createElement('div');
+            label.className = `math-label ${isDeltaV ? 'delta-v' : ''}`;
+            label.innerHTML = renderKaTeXLabel(latex);
+            
+            const canvasRect = canvas.getBoundingClientRect();
+            const scaleX = canvasRect.width / canvas.width;
+            const scaleY = canvasRect.height / canvas.height;
+            
+            label.style.left = (x * scaleX) + 'px';
+            label.style.top = (y * scaleY) + 'px';
+            labelsContainer.appendChild(label);
+        }
+
+        function clearLabels() {
+            labelsContainer.innerHTML = '';
+        }
+
+        function drawArrowHead(canvasCtx, fromX, fromY, toX, toY, color) {
+            const headlen = 8;
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            canvasCtx.beginPath();
+            canvasCtx.moveTo(toX, toY);
+            canvasCtx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            canvasCtx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            canvasCtx.closePath();
+            canvasCtx.fillStyle = color;
+            canvasCtx.fill();
+        }
+
+        function saveRenderState(currentPos, currentVel, markedData, isComplete, fullMinX, fullMaxX, graphData) {
+            currentRenderState = { 
+                pos: currentPos, 
+                vel: currentVel, 
+                marked: [...markedData], 
+                isComplete, 
+                minX: fullMinX, 
+                maxX: fullMaxX,
+                graphData: [...graphData]
+            };
+        }
+
+        function renderMotionMap(currentPos, currentVel, markedData, isComplete, fullMinX, fullMaxX) {
+            const { x0, v0, slope, dt } = getInputs();
+            const showValues = document.getElementById('show-values').checked;
+            const pixelsPerMeter = (canvas.width - 80) / (fullMaxX - fullMinX);
+            const axisY = canvas.height * 0.65;
+            const motionMapY = axisY - 25;
+            const VELOCITY_SCALE = 0.5;
+            const VELOCITY_EPSILON = 0.01;
+
+            // Clear canvas
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw axis
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(40, axisY);
+            ctx.lineTo(canvas.width - 40, axisY);
+            ctx.stroke();
+
+            // Draw tick marks and labels
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'black';
+
+            const tickSpacing = pixelsPerMeter > 40 ? 1 : (pixelsPerMeter > 20 ? 2 : 5);
+            for (let i = Math.ceil(fullMinX); i <= Math.floor(fullMaxX); i++) {
+                if ((i - Math.ceil(fullMinX)) % tickSpacing !== 0) continue;
+                const px = 40 + (i - fullMinX) * pixelsPerMeter;
+                ctx.beginPath();
+                ctx.moveTo(px, axisY - 5);
+                ctx.lineTo(px, axisY + 5);
+                ctx.stroke();
+                ctx.fillText(i.toString(), px, axisY + 20);
+            }
+
+            ctx.textAlign = 'right';
+            ctx.fillText('position (m)', canvas.width - 20, axisY + 40);
+
+            clearLabels();
+
+            // Draw velocity vectors
+            markedData.forEach((data, idx) => {
+                const px = 40 + (data.x - fullMinX) * pixelsPerMeter;
+                const py = motionMapY;
+
+                if (Math.abs(data.v) >= VELOCITY_EPSILON) {
+                    const velLength = data.v * pixelsPerMeter * VELOCITY_SCALE;
+                    ctx.strokeStyle = '#22aa44';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(px, py);
+                    ctx.lineTo(px + velLength, py);
+                    ctx.stroke();
+                    drawArrowHead(ctx, px, py, px + velLength, py, '#22aa44');
+                }
+            });
+
+            // Draw dots
+            markedData.forEach((data, idx) => {
+                const px = 40 + (data.x - fullMinX) * pixelsPerMeter;
+                const py = motionMapY;
+
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(px, py, 4, 0, 2 * Math.PI);
+                ctx.fill();
+
+                if (Math.abs(data.v) < VELOCITY_EPSILON) {
+                    createMathLabel(`\\vec{v}_${idx} = 0`, px, py - 18);
+                } else {
+                    const velLength = data.v * pixelsPerMeter * VELOCITY_SCALE;
+                    const labelX = px + velLength / 2;
+                    const labelY = py - 18;
+                    
+                    if (showValues) {
+                        createMathLabel(`\\vec{v}_${idx} = ${data.v.toFixed(1)} \\ \\text{m/s}`, labelX, labelY);
+                    } else {
+                        createMathLabel(`\\vec{v}_${idx}`, labelX, labelY);
+                    }
+                }
+            });
+
+            // Draw current position
+            const px = 40 + (currentPos - fullMinX) * pixelsPerMeter;
+            const py = motionMapY;
+            
+            const velLength = currentVel * pixelsPerMeter * VELOCITY_SCALE;
+            ctx.strokeStyle = '#22aa44';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(px, py);
+            ctx.lineTo(px + velLength, py);
+            ctx.stroke();
+            drawArrowHead(ctx, px, py, px + velLength, py, '#22aa44');
+
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(px, py, 5, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // Draw delta-v if complete
+            if (isComplete && markedData.length > 0) {
+                const deltaV = slope * dt;
+                const deltaVX = 40 + (markedData[0].x - fullMinX) * pixelsPerMeter;
+                const deltaVY = axisY - 85;
+                const deltaVLength = deltaV * pixelsPerMeter * VELOCITY_SCALE;
+
+                ctx.strokeStyle = '#ff8800';
+                ctx.lineWidth = 3.5;
+                ctx.beginPath();
+                ctx.moveTo(deltaVX, deltaVY);
+                ctx.lineTo(deltaVX + deltaVLength, deltaVY);
+                ctx.stroke();
+                drawArrowHead(ctx, deltaVX, deltaVY, deltaVX + deltaVLength, deltaVY, '#ff8800');
+                createMathLabel(`\\Delta\\vec{v}`, deltaVX + deltaVLength / 2, deltaVY - 12, true);
+            }
+        }
+
+        function drawXtGraph(graphData, currentT, duration) {
+            const padding = 40;
+            const width = graphXtCanvas.width;
+            const height = graphXtCanvas.height;
+            const plotWidth = width - 2 * padding;
+            const plotHeight = height - 2 * padding;
+            const zeroY = padding + plotHeight / 2; // Center zero line
+
+            // Clear
+            graphXtCtx.fillStyle = 'white';
+            graphXtCtx.fillRect(0, 0, width, height);
+
+            // Get data range
+            const motionData = calculateMotionData();
+            const minX = Math.min(...motionData.map(d => d.x));
+            const maxX = Math.max(...motionData.map(d => d.x));
+            const tMax = duration;
+
+            // Calculate symmetric scale around zero
+            const maxAbsX = Math.max(Math.abs(minX), Math.abs(maxX));
+            const yRange = maxAbsX * 1.2; // 1.2 for padding
+            const pixelsPerUnit = plotHeight / (2 * yRange);
+
+            // Draw axes
+            graphXtCtx.strokeStyle = 'black';
+            graphXtCtx.lineWidth = 2;
+            graphXtCtx.beginPath();
+            graphXtCtx.moveTo(padding, padding);
+            graphXtCtx.lineTo(padding, padding + plotHeight);
+            graphXtCtx.stroke();
+            graphXtCtx.beginPath();
+            graphXtCtx.moveTo(padding, zeroY);
+            graphXtCtx.lineTo(width - padding, zeroY);
+            graphXtCtx.stroke();
+
+            // Draw grid and labels
+            graphXtCtx.font = '12px Arial';
+            graphXtCtx.fillStyle = '#999';
+            
+            // Time axis labels and grid
+            for (let t = 0; t <= tMax; t += Math.max(1, Math.floor(tMax / 5))) {
+                const px = padding + (t / tMax) * plotWidth;
+                graphXtCtx.fillText(t.toFixed(0), px, zeroY + 20);
+                graphXtCtx.strokeStyle = '#e5e7eb';
+                graphXtCtx.lineWidth = 1;
+                graphXtCtx.beginPath();
+                graphXtCtx.moveTo(px, padding);
+                graphXtCtx.lineTo(px, padding + plotHeight);
+                graphXtCtx.stroke();
+            }
+
+            // Position axis labels (symmetric around zero)
+            const xStep = Math.pow(10, Math.floor(Math.log10(yRange / 5)));
+            for (let x = -Math.ceil(yRange / xStep) * xStep; x <= Math.ceil(yRange / xStep) * xStep; x += xStep) {
+                const py = zeroY - x * pixelsPerUnit;
+                if (py >= padding && py <= padding + plotHeight) {
+                    graphXtCtx.textAlign = 'right';
+                    graphXtCtx.fillText(x.toFixed(1), padding - 5, py + 4);
+                    graphXtCtx.strokeStyle = '#e5e7eb';
+                    graphXtCtx.lineWidth = 1;
+                    graphXtCtx.beginPath();
+                    graphXtCtx.moveTo(padding, py);
+                    graphXtCtx.lineTo(width - padding, py);
+                    graphXtCtx.stroke();
+                }
+            }
+
+            // Draw axis labels
+            graphXtCtx.fillStyle = 'black';
+            graphXtCtx.textAlign = 'center';
+            graphXtCtx.fillText('t (s)', width / 2, height - 10);
+            graphXtCtx.save();
+            graphXtCtx.translate(10, height / 2);
+            graphXtCtx.rotate(-Math.PI / 2);
+            graphXtCtx.fillText('x (m)', 0, 0);
+            graphXtCtx.restore();
+
+            // Plot continuous curve
+            graphXtCtx.strokeStyle = '#3b82f6';
+            graphXtCtx.lineWidth = 2;
+            graphXtCtx.beginPath();
+            
+            for (let t = 0; t <= currentT; t += 0.05) {
+                const { x } = calculatePositionVelocity(t);
+                const px = padding + (t / tMax) * plotWidth;
+                const py = zeroY - x * pixelsPerUnit;
+                if (t === 0) {
+                    graphXtCtx.moveTo(px, py);
+                } else {
+                    graphXtCtx.lineTo(px, py);
+                }
+            }
+            graphXtCtx.stroke();
+
+            // Plot marked points
+            graphData.forEach(point => {
+                const px = padding + (point.t / tMax) * plotWidth;
+                const py = zeroY - point.x * pixelsPerUnit;
+                graphXtCtx.fillStyle = 'black';
+                graphXtCtx.beginPath();
+                graphXtCtx.arc(px, py, 3, 0, 2 * Math.PI);
+                graphXtCtx.fill();
+            });
+
+            // Plot current point
+            const { x: currX } = calculatePositionVelocity(currentT);
+            const currPx = padding + (currentT / tMax) * plotWidth;
+            const currPy = zeroY - currX * pixelsPerUnit;
+            graphXtCtx.fillStyle = '#ef4444';
+            graphXtCtx.beginPath();
+            graphXtCtx.arc(currPx, currPy, 4, 0, 2 * Math.PI);
+            graphXtCtx.fill();
+        }
+
+        function drawVtGraph(graphData, currentT, duration) {
+            const padding = 40;
+            const width = graphVtCanvas.width;
+            const height = graphVtCanvas.height;
+            const plotWidth = width - 2 * padding;
+            const plotHeight = height - 2 * padding;
+            const zeroY = padding + plotHeight / 2; // Center zero line
+
+            // Clear
+            graphVtCtx.fillStyle = 'white';
+            graphVtCtx.fillRect(0, 0, width, height);
+
+            // Get data range
+            const motionData = calculateMotionData();
+            const minV = Math.min(...motionData.map(d => d.v));
+            const maxV = Math.max(...motionData.map(d => d.v));
+            const tMax = duration;
+
+            // Calculate symmetric scale around zero
+            const maxAbsV = Math.max(Math.abs(minV), Math.abs(maxV));
+            const yRange = maxAbsV * 1.2; // 1.2 for padding
+            const pixelsPerUnit = plotHeight / (2 * yRange);
+
+            // Draw axes
+            graphVtCtx.strokeStyle = 'black';
+            graphVtCtx.lineWidth = 2;
+            graphVtCtx.beginPath();
+            graphVtCtx.moveTo(padding, padding);
+            graphVtCtx.lineTo(padding, padding + plotHeight);
+            graphVtCtx.stroke();
+            graphVtCtx.beginPath();
+            graphVtCtx.moveTo(padding, zeroY);
+            graphVtCtx.lineTo(width - padding, zeroY);
+            graphVtCtx.stroke();
+
+            // Draw grid and labels
+            graphVtCtx.font = '12px Arial';
+            graphVtCtx.fillStyle = '#999';
+            
+            // Time axis labels and grid
+            for (let t = 0; t <= tMax; t += Math.max(1, Math.floor(tMax / 5))) {
+                const px = padding + (t / tMax) * plotWidth;
+                graphVtCtx.fillText(t.toFixed(0), px, zeroY + 20);
+                graphVtCtx.strokeStyle = '#e5e7eb';
+                graphVtCtx.lineWidth = 1;
+                graphVtCtx.beginPath();
+                graphVtCtx.moveTo(px, padding);
+                graphVtCtx.lineTo(px, padding + plotHeight);
+                graphVtCtx.stroke();
+            }
+
+            // Velocity axis labels (symmetric around zero)
+            const vStep = Math.pow(10, Math.floor(Math.log10(yRange / 5)));
+            for (let v = -Math.ceil(yRange / vStep) * vStep; v <= Math.ceil(yRange / vStep) * vStep; v += vStep) {
+                const py = zeroY - v * pixelsPerUnit;
+                if (py >= padding && py <= padding + plotHeight) {
+                    graphVtCtx.textAlign = 'right';
+                    graphVtCtx.fillText(v.toFixed(1), padding - 5, py + 4);
+                    graphVtCtx.strokeStyle = '#e5e7eb';
+                    graphVtCtx.lineWidth = 1;
+                    graphVtCtx.beginPath();
+                    graphVtCtx.moveTo(padding, py);
+                    graphVtCtx.lineTo(width - padding, py);
+                    graphVtCtx.stroke();
+                }
+            }
+
+            // Draw axis labels
+            graphVtCtx.fillStyle = 'black';
+            graphVtCtx.textAlign = 'center';
+            graphVtCtx.fillText('t (s)', width / 2, height - 10);
+            graphVtCtx.save();
+            graphVtCtx.translate(10, height / 2);
+            graphVtCtx.rotate(-Math.PI / 2);
+            graphVtCtx.fillText('v (m/s)', 0, 0);
+            graphVtCtx.restore();
+
+            // Plot continuous curve (linear for constant acceleration)
+            graphVtCtx.strokeStyle = '#10b981';
+            graphVtCtx.lineWidth = 2;
+            graphVtCtx.beginPath();
+            
+            for (let t = 0; t <= currentT; t += 0.05) {
+                const { v } = calculatePositionVelocity(t);
+                const px = padding + (t / tMax) * plotWidth;
+                const py = zeroY - v * pixelsPerUnit;
+                if (t === 0) {
+                    graphVtCtx.moveTo(px, py);
+                } else {
+                    graphVtCtx.lineTo(px, py);
+                }
+            }
+            graphVtCtx.stroke();
+
+            // Plot marked points
+            graphData.forEach(point => {
+                const px = padding + (point.t / tMax) * plotWidth;
+                const py = zeroY - point.v * pixelsPerUnit;
+                graphVtCtx.fillStyle = 'black';
+                graphVtCtx.beginPath();
+                graphVtCtx.arc(px, py, 3, 0, 2 * Math.PI);
+                graphVtCtx.fill();
+            });
+
+            // Plot current point
+            const { v: currV } = calculatePositionVelocity(currentT);
+            const currPx = padding + (currentT / tMax) * plotWidth;
+            const currPy = zeroY - currV * pixelsPerUnit;
+            graphVtCtx.fillStyle = '#10b981';
+            graphVtCtx.beginPath();
+            graphVtCtx.arc(currPx, currPy, 4, 0, 2 * Math.PI);
+            graphVtCtx.fill();
+        }
+
+        function rerenderCurrentState() {
+            renderMotionMap(currentRenderState.pos, currentRenderState.vel, currentRenderState.marked, 
+                          currentRenderState.isComplete, currentRenderState.minX, currentRenderState.maxX);
+        }
+
+        function playAnimation() {
+            if (isAnimating) return;
+
+            const motionData = calculateMotionData();
+            markedData = [];
+            let graphData = [];
+
+            const minPos = Math.min(...motionData.map(d => d.x));
+            const maxPos = Math.max(...motionData.map(d => d.x));
+            const maxVel = Math.max(...motionData.map(d => Math.abs(d.v)));
+            const minVel = Math.min(...motionData.map(d => d.v));
+            
+            const velExtension = maxVel * 0.5;
+            const minVelExtension = Math.min(minVel * 0.5, 0);
+            
+            const fullMinX = minPos - 1 + minVelExtension;
+            const fullMaxX = maxPos + 1 + velExtension;
+
+            const { duration, dt } = getInputs();
+            const playbackSpeed = parseFloat(document.getElementById('playback-speed').value);
+
+            isAnimating = true;
+            document.getElementById('play-btn').disabled = true;
+            document.getElementById('play-btn').textContent = '⏸ Animating...';
+
+            let startTime = performance.now();
+            let nextMarkIndex = 0;
+
+            function animate(currentTime) {
+                const elapsedTime = (currentTime - startTime) / 1000;
+                const scaledTime = elapsedTime / playbackSpeed;
+
+                if (scaledTime >= duration) {
+                    while (nextMarkIndex < motionData.length) {
+                        markedData.push(motionData[nextMarkIndex]);
+                        graphData.push(motionData[nextMarkIndex]);
+                        nextMarkIndex++;
+                    }
+                    
+                    const finalData = motionData[motionData.length - 1];
+                    renderMotionMap(finalData.x, finalData.v, markedData, true, fullMinX, fullMaxX);
+                    drawXtGraph(graphData, duration, duration);
+                    drawVtGraph(graphData, duration, duration);
+                    saveRenderState(finalData.x, finalData.v, markedData, true, fullMinX, fullMaxX, graphData);
+                    isAnimating = false;
+                    document.getElementById('play-btn').disabled = false;
+                    document.getElementById('play-btn').textContent = '▶ Play Animation';
+                    return;
+                }
+
+                const { x: currentX, v: currentV } = calculatePositionVelocity(scaledTime);
+
+                while (nextMarkIndex < motionData.length && motionData[nextMarkIndex].t <= scaledTime) {
+                    markedData.push(motionData[nextMarkIndex]);
+                    graphData.push(motionData[nextMarkIndex]);
+                    nextMarkIndex++;
+                }
+
+                renderMotionMap(currentX, currentV, markedData, false, fullMinX, fullMaxX);
+                drawXtGraph(graphData, scaledTime, duration);
+                drawVtGraph(graphData, scaledTime, duration);
+                saveRenderState(currentX, currentV, markedData, false, fullMinX, fullMaxX, graphData);
+                animationId = requestAnimationFrame(animate);
+            }
+
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function updateInitialRender() {
+            const motionData = calculateMotionData();
+            const minPos = Math.min(...motionData.map(d => d.x));
+            const maxPos = Math.max(...motionData.map(d => d.x));
+            const maxVel = Math.max(...motionData.map(d => Math.abs(d.v)));
+            const minVel = Math.min(...motionData.map(d => d.v));
+            
+            const velExtension = maxVel * 0.5;
+            const minVelExtension = Math.min(minVel * 0.5, 0);
+            
+            const fullMinX = minPos - 1 + minVelExtension;
+            const fullMaxX = maxPos + 1 + velExtension;
+            const { duration } = getInputs();
+            
+            renderMotionMap(motionData[0].x, motionData[0].v, [], false, fullMinX, fullMaxX);
+            drawXtGraph([], 0, duration);
+            drawVtGraph([], 0, duration);
+            saveRenderState(motionData[0].x, motionData[0].v, [], false, fullMinX, fullMaxX, []);
+        }
+
+        document.getElementById('play-btn').addEventListener('click', playAnimation);
+        document.getElementById('export-btn').addEventListener('click', () => alert('SVG export coming soon with graphs!'));
+        document.getElementById('show-values').addEventListener('change', rerenderCurrentState);
+
+        ['x0', 'v0', 'slope', 'duration', 'dt'].forEach(id => {
+            document.getElementById(id).addEventListener('input', updateInitialRender);
+        });
+
+        updateInitialRender();
+    </script>
+</body>
+</html>
